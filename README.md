@@ -107,11 +107,12 @@ Displays all credentials in console without saving to file.
 ## 📄 License
 
 This script is provided "as-is" without warranty. Use at your own risk.
+It was based on information in the Veeam KB article https://www.veeam.com/kb4349 
 
 ---
 
 ## ✨ Author
 
-Created by [Your Name or Team]  
+Created by Didier Van Hoye  
 Feel free to contribute or suggest improvements!
 
