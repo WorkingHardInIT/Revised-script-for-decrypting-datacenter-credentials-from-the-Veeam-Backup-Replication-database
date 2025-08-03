@@ -1,14 +1,27 @@
 param (
-    [string]$Username,       # Optional: filter for a specific user
-    [switch]$NoExport        # Optional: skip writing to file
+    [string]$Username,
+    [switch]$NoExport
 )
 
-if (-not [string]::IsNullOrWhiteSpace($Username)) {
-    Write-Host "🔧 Username filter: $Username" -ForegroundColor DarkGray
-}
-else {
-    Write-Host "❌  Username filter: username pass was null or whitespace!" -ForegroundColor red
-}
+Function DecryptVeeamEncryptedPasswords-V2 {
+[CmdletBinding()]
+param (
+    [string]$Username       # Optional: filter for a specific user
+    #[switch]$NoExport        # Optional: skip writing to file
+)
+
+if (-not $PSBoundParameters.ContainsKey('Username')) {
+        Write-Host "ℹ️ Username parameter was not passed." -ForegroundColor DarkGray
+        #DecryptVeeamEncryptedPasswords-V2
+    }
+    elseif ([string]::IsNullOrWhiteSpace($Username)) {
+        Write-Host "❌ Username was passed but is null, empty, or only whitespace." -ForegroundColor red
+        return
+    }
+    else {
+        Write-Host "✅ Username was passed and is: '$Username'" -ForegroundColor green
+        #DecryptVeeamEncryptedPasswords-V2 -Username $Username
+    }
 
 Write-Host "🔧 NoExport flag: $NoExport" -ForegroundColor DarkGray
 
@@ -237,4 +250,16 @@ if (-not $NoExport) {
 }
 else {
     Write-Host "`n📤 Export skipped (NoExport flag used)." -ForegroundColor Magenta
+}
+}
+
+# 🧪 Run the function
+if ($PSBoundParameters.ContainsKey('Username')) {
+    DecryptVeeamEncryptedPasswords-V2 -Username $Username
+} else {
+    DecryptVeeamEncryptedPasswords-V2
+}
+if ($Host.Name -eq 'ConsoleHost') {
+    Write-Host "`nPress Enter to exit..."
+    [void][System.Console]::ReadLine()
 }
