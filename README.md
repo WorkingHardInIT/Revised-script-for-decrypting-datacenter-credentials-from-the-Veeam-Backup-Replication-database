@@ -1,118 +1,143 @@
-# Revised-script-for-decrypting-datacenter-credentials-from-the-Veeam-Backup-Replication-database
-# 🔐 Veeam Credentials Export Script
+# 🔐 Decrypt Veeam Backup & Replication Stored Credentials
 
-This PowerShell script extracts and decrypts stored credentials from **Veeam Backup & Replication** configuration. It supports both **MSSQL** and **PostgreSQL** backends and handles multiple Veeam password formats (v12 and earlier, v12.1+ with encryption salt).
+This PowerShell script retrieves and decrypts credentials stored in a Veeam Backup & Replication (VBR) configuration database. It supports both **MSSQL** and **PostgreSQL** backends and handles credentials encrypted in **v12** as well as **v12.1 and later**, which use an **encryption salt**. It is based on information found in the Veeam KB article "How to Recover Account Credentials From the Veeam Backup & Replication Database" (https://www.veeam.com/kb4349). Also, see my blog about this script: 
 
----
+## ✅ Features
 
-## 📦 Features
+- 🔎 Retrieves stored credentials from MSSQL or PostgreSQL database  
+- 🔐 Detects and supports both:  
+  - **v12 and earlier**: base64 + DPAPI-encrypted strings starting with `A`  
+  - **v12.1+**: base64 + encryption salt, prefixed with `V`  
+- 🧂 Automatically retrieves encryption salt from the registry  
+- 🧾 Optional filtering by username (`-Username`)  
+- 💾 Optional suppression of file export (`-NoExport`)  
+- 🧵 Single-pass logic (no recursion or redundant processing)  
+- 💡 Informative output with emoji + color coding  
+- 📋 Clean export formatting (if enabled)
 
-- ✅ Supports **VBR v10 through v12.3+** and decrypts Veeam credentials from registry and database  
-- 👤 Per-user counters and clean output formatting  
-- 🗄️ Supports **MSSQL** and **PostgreSQL** configurations  
-- 🔐 Handles multiple password formats:  
-  - `v12 and lower`  
-  - `v12.1 and up (with encryption salt)`  
-- 🔍 Optional filtering by username  
-- 📁 Optional export to file (`Veeam_Credentials.txt` on Desktop)  
-- 🛡️ Graceful error handling and informative console output  
+## 🧠 Parameter Reference
 
----
+### `-Username` (optional)
 
-## 🚀 Usage
+- If omitted, the script processes all available credentials.
+- If provided, only credentials for the specified user are processed.
+- If empty or whitespace, the script halts with a warning.
+
+### `-NoExport` (optional)
+
+- If used, the script does not export results to a file.
+- If not specified, results are written to a file:
+
+`%USERPROFILE%\Desktop\Veeam_Credentials.txt`
+
+## 🧂 Info needed to access and query the database
+In Veeam Backup & Replication, the database info lives in the registry
+
+- The Veeam database info in the registry lives here and is retrieved by the script as needed:
+`Computer\HKEY_LOCAL_MACHINE\SOFTWARE\Veeam\Veeam Backup and Replication\DatabaseConfigurations\`
+<img width="600" height="400" alt="image" src="https://github.com/user-attachments/assets/f1a55879-b2fd-453d-b17c-550989709d9c" />
+
+
+## 🧂 Encryption Salt Handling
+
+In Veeam Backup & Replication v12.1 and later, encrypted passwords use an additional salt to protect the data.
+
+This script:
+
+- Automatically retrieves the encryption salt from the registry:
+
+`HKLM:\SOFTWARE\Veeam\Veeam Backup and Replication\Data`
+<img width="700" height="322" alt="image" src="https://github.com/user-attachments/assets/5a3a7bd3-af35-4e89-9290-a1a9426c6080" />
+
+
+- Applies the salt when decrypting passwords that begin with `V` (v12.1+ format)
+
+No manual configuration is needed.
+
+## 📄 Example Usage
 
 ```powershell
-.\Export-VeeamCredentials.ps1 [-Username <string>] [-NoExport]
+# Decrypt all credentials and export to Desktop
+.\DecryptVeeamEncryptedPasswords.ps1
+
+# Decrypt a specific user and export results
+.\DecryptVeeamEncryptedPasswords.ps1 -Username 'DOMAIN\veeamservice'
+
+# Decrypt a specific user without exporting
+.\DecryptVeeamEncryptedPasswords.ps1 -Username 'DOMAIN\dbadmin' -NoExport
 ```
 
-### Parameters
-
-| Parameter   | Type     | Description                                                                 |
-|-------------|----------|-----------------------------------------------------------------------------|
-| `Username`  | `string` | (Optional) Filter results for a specific username                           |
-| `NoExport`  | `switch` | (Optional) Skip writing results to file                                     |
-
----
-
-## 📁 Output
-
-If `-NoExport` is not used, the script writes results to:
+## 📦 Sample Output
 
 ```
-%USERPROFILE%\Desktop\Veeam_Credentials.txt
+--- User #1 ---
+🔍 Username: DOMAIN\backupadmin 🔐 Format: v12.1 and up  (with encryption salt)
+   🔒 Encrypted password: V2lZQU1Da...==
+   ✅ Decrypted password: P@ssword123!
 ```
 
-Each entry includes:
+If a password is missing or can't be decrypted:
 
-- Username  
-- Encrypted password  
-- Decrypted password (if successful)  
+```
+--- User #2 ---
+🔍 Username: DOMAIN\tempuser ⚠️ No password stored.
+```
 
----
+If `-Username` is specified but no match is found:
 
-## 🔍 Password Format Detection
-
-The script identifies password format using the first character of the encrypted string:
-
-| Format Prefix | Description                        |
-|---------------|------------------------------------|
-| `A...`        | Veeam v12 and lower                |
-| `V...`        | Veeam v12.1 and up (salted)        |
-| Other         | Unknown format                     |
-
----
-
-## 🔓 Decryption Logic
-
-- **v12 and lower**: Uses `ProtectedData.Unprotect` without salt  
-- **v12.1 and up**: Uses `ProtectedData.Unprotect` with registry-based salt  
-
----
+```
+⚠️ No credentials found for user 'DOMAIN\ghostuser'
+```
 
 ## 🛠 Requirements
 
-- PowerShell 5.1+  
-- Access to registry paths:  
-  - `HKLM:\SOFTWARE\Veeam\Veeam Backup and Replication\DatabaseConfigurations`  
-  - `HKLM:\SOFTWARE\Veeam\Veeam Backup and Replication\Data`  
-- For PostgreSQL:  
-  - `Npgsql` .NET assembly (optional, falls back to ODBC if unavailable)  
+- PowerShell 5.1 or PowerShell Core (7+)
+- Local admin privileges
+- Access to the Veeam registry hive
+- For PostgreSQL: Npgsql.dll or ODBC PostgreSQL driver
 
----
+## ❗ Notes
 
-## ⚠️ Notes
+- The script does not modify any data or credentials.
+- Passwords are decrypted locally using Windows DPAPI.
+- All sensitive data is handled in memory only unless you choose to export.
+- The script includes fallback to ODBC if the Npgsql .NET assembly is not available.
 
-- PostgreSQL password must be entered manually when prompted  
-- If `Username` is passed but empty/whitespace, all credentials are skipped  
-- If no credentials match the filter, a warning is displayed  
+## 📁 Output File Format
 
----
+If export is enabled (default behavior), the output file will contain entries like:
 
-## 📌 Example
+```
+Veeam Credentials Export
+Date: 2025-08-03 14:23:57
+Executed by: administrator
+VBR Server: VEEAM-BR01
+----------------------------------------
 
-```powershell
-.\Export-VeeamCredentials.ps1 -Username "admin"
+User #1
+Username           : DOMAIN\svc.veeam
+Encrypted password : AASD8fjs9asdf...
+Decrypted password : MySecureP@ss!
+**************************************
+
+User #2
+Username           : DOMAIN\testuser
+Encrypted password : VzdsSDFKKSDS...
+Decrypted password : SuperStrongPassword!
+**************************************
 ```
 
-Exports credentials for user `admin` and saves them to file.
+## 🧪 Testing
+
+You can run the script directly in PowerShell:
 
 ```powershell
-.\Export-VeeamCredentials.ps1 -NoExport
+.\DecryptVeeamEncryptedPasswords.ps1 -Username 'veeamadmin' -NoExport
 ```
 
-Displays all credentials in console without saving to file.
+To prevent the script from closing immediately (when run interactively), it will pause if executed in the console host.
 
----
+## 📣 Credits
 
-## 📄 License
-
-This script is provided "as-is" without warranty. Use at your own risk.
-It was based on information in the Veeam KB article https://www.veeam.com/kb4349 
-
----
-
-## ✨ Author
-
-Created by Didier Van Hoye  
-Feel free to contribute or suggest improvements!
-
+Script maintained by [WorkingHardInIT](https://github.com/WorkingHardInIT)  
+Contributions welcome!
